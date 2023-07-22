@@ -2,7 +2,6 @@
 #ifndef S3DASH_BLE_H
 #define S3DASH_BLE_H
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,9 +21,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 
-
 void ble_init();
 
-void set_ble_notify_callback(void (*notify_func)(uint8_t * data, size_t len));
+void set_ble_notify_callback(void (*notify_func)(uint8_t *data, size_t len));
 
 #endif

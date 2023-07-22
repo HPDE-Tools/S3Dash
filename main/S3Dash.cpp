@@ -19,13 +19,15 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.h>
 
-
-class LGFX: public lgfx::LGFX_Device {
+class LGFX : public lgfx::LGFX_Device
+{
     lgfx::Bus_Parallel8 _bus_instance;
     lgfx::Panel_ST7789 _panel_instance;
-    lgfx::Light_PWM     _light_instance;
+    lgfx::Light_PWM _light_instance;
+
 public:
-    LGFX(void) {
+    LGFX(void)
+    {
         {
             auto cfg = _bus_instance.config();
             cfg.pin_wr = 8;
@@ -51,10 +53,10 @@ public:
             cfg.offset_rotation = 1;
             cfg.offset_x = 35;
             cfg.readable = false;
-            cfg.invert          = true;
-            cfg.rgb_order       = false;
-            cfg.dlen_16bit      = false;
-            cfg.bus_shared      = false;
+            cfg.invert = true;
+            cfg.rgb_order = false;
+            cfg.dlen_16bit = false;
+            cfg.bus_shared = false;
             cfg.panel_width = 170;
             cfg.panel_height = 320;
 
@@ -67,7 +69,7 @@ public:
 
             cfg.pin_bl = 38;
             cfg.invert = false;
-            cfg.freq   = 22000;
+            cfg.freq = 22000;
             cfg.pwm_channel = 7;
 
             _light_instance.config(cfg);
@@ -108,11 +110,12 @@ LGFX_Sprite sprite;
 
 #define PIN_LCD_RD 9
 
-void vTask_LCD(void * pvParameters);
-void vTask_DataInput(void* pvParameters);
-void vTask_DataMock(void* pvParameter);
+void vTask_LCD(void *pvParameters);
+void vTask_DataInput(void *pvParameters);
+void vTask_DataMock(void *pvParameter);
 
-typedef struct {
+typedef struct
+{
     int oil_pressure;
     int oil_temp;
     int engine_coolant_temp;
@@ -124,17 +127,20 @@ typedef struct {
 dash_data_t dash_data_share;
 SemaphoreHandle_t dash_data_lock;
 
-void notify_cb(uint8_t * data, size_t len);
+void notify_cb(uint8_t *data, size_t len);
 
-void draw_sprite() {
+void draw_sprite()
+{
     dash_data_t dash_data;
     xSemaphoreTake(dash_data_lock, portMAX_DELAY);
     dash_data = dash_data_share;
     xSemaphoreGive(dash_data_lock);
-    if (dash_data.oil_pressure < 0) {
+    if (dash_data.oil_pressure < 0)
+    {
         dash_data.oil_pressure = 0;
     }
-    if (dash_data.oil_pressure > 160) {
+    if (dash_data.oil_pressure > 160)
+    {
         dash_data.oil_pressure = 160;
     }
 
@@ -165,11 +171,11 @@ void draw_sprite() {
     sprite.setFont(&fonts::Font0);
     sprite.setTextSize(1);
     sprite.drawString("OilP:", 0, 0);
-    
+
     sprite.setTextSize(13);
     sprintf(digits, "%3d", dash_data.oil_pressure);
     sprite.drawString(digits, 0, 15);
-    
+
     sprite.setTextSize(4);
     sprintf(digits, "%3d", dash_data.oil_temp);
     sprite.drawString(digits, 240, 10);
@@ -208,20 +214,23 @@ static void tick_timer_cb(void *arg)
 
 extern "C" void app_main(void)
 {
-    esp_err_t  err = gpio_set_direction(GPIO_NUM_15, GPIO_MODE_OUTPUT);
-    if (err) {
+    esp_err_t err = gpio_set_direction(GPIO_NUM_15, GPIO_MODE_OUTPUT);
+    if (err)
+    {
         ESP_LOGE("MAIN", "failed to set pin 15 to output");
     }
     err = gpio_set_level(GPIO_NUM_15, 1);
-    if (err) {
+    if (err)
+    {
         ESP_LOGE("MAIN", "failed to set pin 15 to 1");
     }
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
-    ESP_ERROR_CHECK( ret );
+    ESP_ERROR_CHECK(ret);
     dash_data_lock = xSemaphoreCreateMutex();
     lcd.init();
     lcd.setRotation(0);
@@ -240,16 +249,17 @@ extern "C" void app_main(void)
     esp_timer_handle_t tick_timer = NULL;
     ESP_ERROR_CHECK(esp_timer_create(&tick_timer_args, &tick_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(tick_timer, 1000000));
-    xTaskCreatePinnedToCore(vTask_LCD, "lcdTask", 1024*16, NULL, 1, NULL, 1);
-    //xTaskCreatePinnedToCore(vTask_DataInput, "dataTask", 1024*2, NULL, tskIDLE_PRIORITY, NULL, 0);
+    xTaskCreatePinnedToCore(vTask_LCD, "lcdTask", 1024 * 16, NULL, 1, NULL, 1);
+    // xTaskCreatePinnedToCore(vTask_DataInput, "dataTask", 1024*2, NULL, tskIDLE_PRIORITY, NULL, 0);
     ble_init();
     set_ble_notify_callback(notify_cb);
 }
 
+void vTask_LCD(void *pvParameters)
+{
 
-void vTask_LCD(void * pvParameters) {
-
-    while(1) {        
+    while (1)
+    {
         vTaskDelay(1);
         draw_sprite();
         // Function will block until all data are written.
@@ -258,9 +268,11 @@ void vTask_LCD(void * pvParameters) {
     }
 }
 
-void vTask_DataMock(void* pvParameter) {
+void vTask_DataMock(void *pvParameter)
+{
     srand(100);
-    while(1) {
+    while (1)
+    {
         int r1 = rand();
         int r2 = rand();
         int r3 = rand();
@@ -273,7 +285,7 @@ void vTask_DataMock(void* pvParameter) {
         dash_data_share.oil_temp = r2 % 250;
         dash_data_share.engine_coolant_temp = r3 % 250;
         dash_data_share.throttle_per = r4 % 100;
-        dash_data_share.brake_per = r5 %100;
+        dash_data_share.brake_per = r5 % 100;
         dash_data_share.steering = r6 % 1800 - 900;
 
         xSemaphoreGive(dash_data_lock);
@@ -281,13 +293,15 @@ void vTask_DataMock(void* pvParameter) {
     }
 }
 
-void notify_cb(uint8_t * data, size_t len) {
+void notify_cb(uint8_t *data, size_t len)
+{
     if (len < 12)
         return;
-    uint32_t can_id = *(uint32_t*)data;
+    uint32_t can_id = *(uint32_t *)data;
     uint8_t *payload = data + 4;
     xSemaphoreTake(dash_data_lock, portMAX_DELAY);
-    switch(can_id) {
+    switch (can_id)
+    {
     case 0x40:
         dash_data_share.throttle_per = ((int)*(payload + 4)) * 100 / 255;
         break;
@@ -295,12 +309,12 @@ void notify_cb(uint8_t * data, size_t len) {
         dash_data_share.steering = *(int16_t *)(payload + 2) / 10;
         break;
     case 0x139:
-        dash_data_share.brake_per = ((int)*(payload+5)) * 128 / 100;
+        dash_data_share.brake_per = ((int)*(payload + 5)) * 128 / 100;
         break;
     case 0x345:
-        dash_data_share.oil_temp = ((int)*(payload+3)) - 40;
+        dash_data_share.oil_temp = ((int)*(payload + 3)) - 40;
         dash_data_share.oil_temp = dash_data_share.oil_temp * 9 / 5 + 32;
-        dash_data_share.engine_coolant_temp = ((int)*(payload+4)) - 40;
+        dash_data_share.engine_coolant_temp = ((int)*(payload + 4)) - 40;
         dash_data_share.engine_coolant_temp = dash_data_share.engine_coolant_temp * 9 / 5 + 32;
         break;
     case 0x662:
