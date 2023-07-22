@@ -194,6 +194,8 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                                                  ESP_GATT_AUTH_REQ_NONE);
                         memset(send_buf, 0, 8);
                         send_buf[0] = 2;
+                        send_buf[1] = 0;
+                        send_buf[2] = 50;
                         send_buf[6] = 0x40;
                         esp_ble_gattc_write_char(gattc_if,
                                                  p_data->search_cmpl.conn_id,
@@ -204,6 +206,8 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                                                  ESP_GATT_AUTH_REQ_NONE);
                         memset(send_buf, 0, 8);
                         send_buf[0] = 2;
+                        send_buf[1] = 0;
+                        send_buf[2] = 50;
                         send_buf[5] = 0x01;
                         send_buf[6] = 0x38;
                         esp_ble_gattc_write_char(gattc_if,
@@ -215,6 +219,8 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                                                  ESP_GATT_AUTH_REQ_NONE);
                         memset(send_buf, 0, 8);
                         send_buf[0] = 2;
+                        send_buf[1] = 0;
+                        send_buf[2] = 50;
                         send_buf[5] = 0x01;
                         send_buf[6] = 0x39;
                         esp_ble_gattc_write_char(gattc_if,
@@ -226,6 +232,8 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                                                  ESP_GATT_AUTH_REQ_NONE);
                         memset(send_buf, 0, 8);
                         send_buf[0] = 2;
+                        send_buf[1] = 0;
+                        send_buf[2] = 200;
                         send_buf[5] = 0x03;
                         send_buf[6] = 0x45;
                         esp_ble_gattc_write_char(gattc_if,
@@ -237,6 +245,8 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                                                  ESP_GATT_AUTH_REQ_NONE);
                         memset(send_buf, 0, 8);
                         send_buf[0] = 2;
+                        send_buf[1] = 0;
+                        send_buf[2] = 50;
                         send_buf[5] = 0x06;
                         send_buf[6] = 0x62;
                         esp_ble_gattc_write_char(gattc_if,
