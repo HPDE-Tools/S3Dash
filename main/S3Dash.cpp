@@ -110,6 +110,19 @@ LGFX_Sprite sprite;
 
 #define PIN_LCD_RD 9
 
+#define UI_COLUMN_BEGIN_1 2
+#define UI_COLUMN_BEGIN_2 248
+#define UI_LABEL_HEIGHT 21
+#define UI_MARGIN_VERTICAL 2
+#define UI_ROW_HEIGHT 60
+#define UI_ROW_BEGIN_1 (UI_MARGIN_VERTICAL)
+#define UI_ROW_BEGIN_2 (UI_MARGIN_VERTICAL + UI_ROW_HEIGHT)
+#define UI_ROW_BEGIN_3 (UI_MARGIN_VERTICAL + UI_ROW_HEIGHT * 2)
+
+uint16_t red = sprite.color565(255, 0, 0);
+uint16_t white = sprite.color565(255, 255, 255);
+uint16_t gray = sprite.color565(190, 190, 190);
+
 void vTask_LCD(void *pvParameters);
 void vTask_DataInput(void *pvParameters);
 void vTask_DataMock(void *pvParameter);
@@ -129,77 +142,84 @@ SemaphoreHandle_t dash_data_lock;
 
 void notify_cb(uint8_t *data, size_t len);
 
+void set_label()
+{
+    sprite.setTextColor(gray);
+    sprite.setFont(&fonts::FreeSans9pt7b);
+    sprite.setTextSize(1);
+}
+
+void set_value()
+{
+    sprite.setTextColor(white);
+    sprite.setFont(&fonts::Font0);
+    sprite.setTextSize(3.5);
+}
+
+void set_value_large()
+{
+    sprite.setTextColor(white);
+    sprite.setFont(&fonts::Font0);
+    sprite.setTextSize(13);
+}
+
 void draw_sprite()
 {
     dash_data_t dash_data;
     xSemaphoreTake(dash_data_lock, portMAX_DELAY);
     dash_data = dash_data_share;
     xSemaphoreGive(dash_data_lock);
-    if (dash_data.oil_pressure < 0)
-    {
-        dash_data.oil_pressure = 0;
-    }
-    if (dash_data.oil_pressure > 160)
-    {
-        dash_data.oil_pressure = 160;
-    }
 
-    if (dash_data.engine_coolant_temp > 300)
-        dash_data.engine_coolant_temp = 300;
-    if (dash_data.engine_coolant_temp < 0)
-        dash_data.engine_coolant_temp = 0;
-    if (dash_data.oil_temp > 300)
-        dash_data.oil_temp = 300;
-    if (dash_data.oil_temp < 0)
-        dash_data.oil_temp = 0;
-    if (dash_data.brake_per > 100)
-        dash_data.brake_per = 100;
-    if (dash_data.brake_per < 0)
-        dash_data.brake_per = 0;
-    if (dash_data.throttle_per > 100)
-        dash_data.throttle_per = 100;
-    if (dash_data.throttle_per < 0)
-        dash_data.throttle_per = 0;
-    if (dash_data.steering > 900)
-        dash_data.steering = 900;
-    if (dash_data.steering < -900)
-        dash_data.steering = -900;
+    dash_data.oil_pressure = std::clamp(dash_data.oil_pressure, 0, 160);
+    dash_data.engine_coolant_temp = std::clamp(dash_data.engine_coolant_temp, 0, 300);
+    dash_data.oil_temp = std::clamp(dash_data.oil_temp, 0, 300);
+    dash_data.brake_per = std::clamp(dash_data.brake_per, 0, 100);
+    dash_data.throttle_per = std::clamp(dash_data.throttle_per, 0, 100);
+    dash_data.steering = std::clamp(dash_data.steering, -900, 900);
 
     char digits[16];
     sprite.fillScreen(0);
-    sprite.setColor(sprite.color565(255, 255, 255));
-    sprite.setFont(&fonts::Font0);
-    sprite.setTextSize(1);
-    sprite.drawString("OilP:", 0, 0);
+    sprite.setColor(white);
 
-    sprite.setTextSize(13);
+    // OilP
+    set_label();
+    sprite.drawString("Oil P (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
+
+    set_value_large();
     sprintf(digits, "%3d", dash_data.oil_pressure);
-    sprite.drawString(digits, 0, 15);
+    sprite.drawString(digits, UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
 
-    sprite.setTextSize(4);
+    // OilT
+    set_label();
+    sprite.drawString("Oil T (F)", UI_COLUMN_BEGIN_2, UI_MARGIN_VERTICAL);
+
+    set_value();
     sprintf(digits, "%3d", dash_data.oil_temp);
-    sprite.drawString(digits, 240, 10);
-    sprintf(digits, "%3d", dash_data.engine_coolant_temp);
-    sprite.drawString(digits, 240, 75);
-    if (dash_data.steering > 0)
-        sprintf(digits, " %3d", dash_data.steering);
-    else
-        sprintf(digits, "%3d", dash_data.steering);
-    sprite.drawString(digits, 216, 140);
+    sprite.drawString(digits, UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
 
-    sprite.setTextSize(1);
-    sprite.drawString("psi", 200, 110);
-    sprite.drawString("OilT:", 240, 0);
-    sprite.drawString("F", 305, 40);
-    sprite.drawString("ECT:", 240, 65);
-    sprite.drawString("F", 305, 105);
-    sprite.drawString("Throttle/", 0, 130);
-    sprite.setTextColor(sprite.color565(255, 0, 0));
-    sprite.drawString("Brake:", 54, 130);
-    sprite.setTextColor(sprite.color565(255, 255, 255));
-    sprite.drawString("Steer:", 240, 130);
-    sprite.fillRect(0, 140, dash_data.throttle_per * 2, 25, sprite.color565(255, 255, 255));
-    sprite.fillRect(0, 140, dash_data.brake_per * 2, 25, sprite.color565(255, 0, 0));
+    // ECT
+    set_label();
+    sprite.drawString("ECT (F)", UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_2);
+
+    set_value();
+    sprintf(digits, "%3d", dash_data.engine_coolant_temp);
+    sprite.drawString(digits, UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_2 + UI_LABEL_HEIGHT);
+
+    // PPS / Brake
+    set_label();
+    sprite.drawString("Throttle /", UI_ROW_BEGIN_1, UI_ROW_BEGIN_3);
+    sprite.setTextColor(red);
+    sprite.drawString("Brake", 78, UI_ROW_BEGIN_3);
+    sprite.fillRect(0, 143, dash_data.throttle_per * 2.21, 24, white);
+    sprite.fillRect(0, 143, dash_data.brake_per * 2.21, 24, red);
+
+    set_label();
+    sprite.drawString("Steering", UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_3);
+
+    // Steering
+    set_value();
+    sprintf(digits, "%3d", dash_data.steering);
+    sprite.drawString(digits, UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_3 + UI_LABEL_HEIGHT);
 }
 
 uint16_t framebuffer[170][320];
