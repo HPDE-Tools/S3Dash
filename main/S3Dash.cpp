@@ -19,6 +19,9 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.h>
 
+#include "types.h"
+#include "lib.h"
+
 class LGFX : public lgfx::LGFX_Device
 {
     lgfx::Bus_Parallel8 _bus_instance;
@@ -110,6 +113,9 @@ LGFX_Sprite sprite;
 
 #define PIN_LCD_RD 9
 
+#define CPU_CORE_0 0
+#define CPU_CORE_1 1
+
 #define UI_COLUMN_BEGIN_1 2
 #define UI_COLUMN_BEGIN_2 248
 #define UI_LABEL_HEIGHT 21
@@ -126,16 +132,6 @@ uint16_t gray = sprite.color565(190, 190, 190);
 void vTask_LCD(void *pvParameters);
 void vTask_DataInput(void *pvParameters);
 void vTask_DataMock(void *pvParameter);
-
-typedef struct
-{
-    int oil_pressure;
-    int oil_temp;
-    int engine_coolant_temp;
-    int throttle_per;
-    int brake_per;
-    int steering;
-} dash_data_t;
 
 dash_data_t dash_data_share;
 SemaphoreHandle_t dash_data_lock;
@@ -170,12 +166,7 @@ void draw_sprite()
     dash_data = dash_data_share;
     xSemaphoreGive(dash_data_lock);
 
-    dash_data.oil_pressure = std::clamp(dash_data.oil_pressure, 0, 160);
-    dash_data.engine_coolant_temp = std::clamp(dash_data.engine_coolant_temp, 0, 300);
-    dash_data.oil_temp = std::clamp(dash_data.oil_temp, 0, 300);
-    dash_data.brake_per = std::clamp(dash_data.brake_per, 0, 100);
-    dash_data.throttle_per = std::clamp(dash_data.throttle_per, 0, 100);
-    dash_data.steering = std::clamp(dash_data.steering, -900, 900);
+    clamp_dash_data(&dash_data);
 
     char digits[16];
     sprite.fillScreen(0);
@@ -267,10 +258,11 @@ extern "C" void app_main(void)
         .skip_unhandled_events = false,
     };
     esp_timer_handle_t tick_timer = NULL;
+
     ESP_ERROR_CHECK(esp_timer_create(&tick_timer_args, &tick_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(tick_timer, 1000000));
-    xTaskCreatePinnedToCore(vTask_LCD, "lcdTask", 1024 * 16, NULL, 1, NULL, 1);
-    // xTaskCreatePinnedToCore(vTask_DataInput, "dataTask", 1024*2, NULL, tskIDLE_PRIORITY, NULL, 0);
+    xTaskCreatePinnedToCore(vTask_LCD, "lcdTask", 1024 * 16, NULL, 1, NULL, CPU_CORE_1);
+    // xTaskCreatePinnedToCore(vTask_DataMock, "dataTask", 1024*2, NULL, tskIDLE_PRIORITY, NULL, CPU_CORE_0);
     ble_init();
     set_ble_notify_callback(notify_cb);
 }
@@ -319,6 +311,7 @@ void notify_cb(uint8_t *data, size_t len)
         return;
     uint32_t can_id = *(uint32_t *)data;
     uint8_t *payload = data + 4;
+
     xSemaphoreTake(dash_data_lock, portMAX_DELAY);
     switch (can_id)
     {
