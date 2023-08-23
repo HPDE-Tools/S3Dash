@@ -16,6 +16,8 @@ private:
     void LabelView(const char *value, int x, int y);
     void MetricView(int x, int y, int width, metric_t *metric);
     void HeroMetricView(int x, int y, int width, metric_t *metric);
+    void ShiftIndicator(dash_data_t *dash_data);
+    void ShiftRect(int index, uint16_t color);
 
 public: 
     SteeringWheelMountedView(Sprite *renderOn);
