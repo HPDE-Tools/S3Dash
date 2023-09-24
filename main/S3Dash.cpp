@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "driver/gpio.h"
+#include "driver/ledc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -31,6 +32,14 @@
 
 LGFX lcd;
 Sprite sprite;
+
+#define LEDC_TIMER              LEDC_TIMER_0
+#define LEDC_MODE               LEDC_LOW_SPEED_MODE
+#define LEDC_OUTPUT_IO          (38) // Define the output GPIO
+#define LEDC_CHANNEL            LEDC_CHANNEL_0
+#define LEDC_DUTY_RES           LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
+#define LEDC_DUTY               (4095) // Set duty to 50%. ((2 ** 13) - 1) * 50% = 4095
+#define LEDC_FREQUENCY          (5000) // Frequency in Hertz. Set frequency at 5 kHz
 
 #define EXAMPLE_LCD_PIXEL_CLOCK_HZ (2 * 1000 * 1000)
 #define EXAMPLE_LCD_BK_LIGHT_ON_LEVEL 1
@@ -243,7 +252,6 @@ void vTask_LCD(void *pvParameters)
                 break;
             }
         }
-
         // Function will block until all data are written.
         sprite.pushSprite(&lcd, 0, 0);
         sprite.endWrite();
@@ -258,7 +266,6 @@ void vTask_DataMock(void *pvParameter)
     {
         is_connected = true;
 
-        int r1 = rand();
         int r2 = rand();
         int r3 = rand();
         int r4 = rand();
@@ -266,7 +273,8 @@ void vTask_DataMock(void *pvParameter)
         int r6 = rand();
         xSemaphoreTake(dash_data_lock, portMAX_DELAY);
 
-        dash_data_share.oil_pressure = r1 % 150;
+        dash_data_share.rpm = (dash_data_share.rpm + (2000000 / (dash_data_share.rpm + 1)) - 160) % 7800;
+        dash_data_share.oil_pressure = dash_data_share.rpm * 0.01 + 10;
         dash_data_share.oil_temp = r2 % 250;
         dash_data_share.engine_coolant_temp = r3 % 250;
         dash_data_share.throttle_per = r4 % 100;
@@ -274,7 +282,7 @@ void vTask_DataMock(void *pvParameter)
         dash_data_share.steering = r6 % 1800 - 900;
 
         xSemaphoreGive(dash_data_lock);
-        vTaskDelay(5);
+        vTaskDelay(400);
     }
 }
 
@@ -291,6 +299,7 @@ void IRAM_ATTR notify_cb(uint8_t *data, size_t len)
     switch (can_id)
     {
     case 0x40:
+        dash_data_share.rpm = bitsToUIntLe(payload, 16, 14);
         dash_data_share.throttle_per = ((int)*(payload + 4)) * 100 / 255;
         break;
     case 0x138:
