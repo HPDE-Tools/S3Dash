@@ -14,8 +14,8 @@ private:
     Sprite *sprite;
 
     void LabelView(const char *value, int x, int y);
-    void MetricView(int x, int y, int width, metric_t *metric);
-    void HeroMetricView(int x, int y, int width, metric_t *metric);
+    void MetricView(int x, int y, int width, metric_t *metric, uint16_t color);
+    void HeroMetricView(int x, int y, int width, metric_t *metric, uint16_t color);
     void ShiftIndicator(dash_data_t *dash_data);
     void ShiftRect(int index, uint16_t color);
 

@@ -274,9 +274,9 @@ void vTask_DataMock(void *pvParameter)
         xSemaphoreTake(dash_data_lock, portMAX_DELAY);
 
         dash_data_share.rpm = (dash_data_share.rpm + (2000000 / (dash_data_share.rpm + 1)) - 160) % 7800;
-        dash_data_share.oil_pressure = dash_data_share.rpm * 0.01 + 10;
-        dash_data_share.oil_temp = r2 % 250;
-        dash_data_share.engine_coolant_temp = r3 % 250;
+        dash_data_share.oil_pressure = dash_data_share.rpm * 0.01;
+        dash_data_share.oil_temp = r2 % 280;
+        dash_data_share.engine_coolant_temp = r3 % 280;
         dash_data_share.throttle_per = r4 % 100;
         dash_data_share.brake_per = r5 % 100;
         dash_data_share.steering = r6 % 1800 - 900;
