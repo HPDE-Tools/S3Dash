@@ -627,7 +627,7 @@ void ble_init(void)
         return;
     }
 
-    // register the  callback function to the gap module
+    // register the callback function to the gap module
     ret = esp_ble_gap_register_callback(esp_gap_cb);
     if (ret)
     {

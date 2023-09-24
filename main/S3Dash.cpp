@@ -81,9 +81,6 @@ public:
     }
 };
 
-LGFX lcd;
-LGFX_Sprite sprite;
-
 #define EXAMPLE_LCD_PIXEL_CLOCK_HZ (2 * 1000 * 1000)
 #define EXAMPLE_LCD_BK_LIGHT_ON_LEVEL 1
 #define EXAMPLE_LCD_BK_LIGHT_OFF_LEVEL !EXAMPLE_LCD_BK_LIGHT_ON_LEVEL
@@ -116,14 +113,20 @@ LGFX_Sprite sprite;
 #define CPU_CORE_0 0
 #define CPU_CORE_1 1
 
+#define UI_SAFE_ZONE_MARGIN 2
+
 #define UI_COLUMN_BEGIN_1 2
-#define UI_COLUMN_BEGIN_2 248
+#define UI_COLUMN_BEGIN_2 236
 #define UI_LABEL_HEIGHT 21
-#define UI_MARGIN_VERTICAL 2
-#define UI_ROW_HEIGHT 60
-#define UI_ROW_BEGIN_1 (UI_MARGIN_VERTICAL)
-#define UI_ROW_BEGIN_2 (UI_MARGIN_VERTICAL + UI_ROW_HEIGHT)
-#define UI_ROW_BEGIN_3 (UI_MARGIN_VERTICAL + UI_ROW_HEIGHT * 2)
+#define UI_ROW_HEIGHT 58
+#define UI_ROW_BEGIN_1 (UI_SAFE_ZONE_MARGIN)
+#define UI_ROW_BEGIN_2 (UI_SAFE_ZONE_MARGIN + UI_ROW_HEIGHT)
+#define UI_ROW_BEGIN_3 (UI_SAFE_ZONE_MARGIN + UI_ROW_HEIGHT * 2)
+
+LGFX lcd;
+LGFX_Sprite sprite;
+dash_data_t dash_data_share;
+SemaphoreHandle_t dash_data_lock;
 
 uint16_t red = sprite.color565(255, 0, 0);
 uint16_t white = sprite.color565(255, 255, 255);
@@ -132,109 +135,267 @@ uint16_t gray = sprite.color565(190, 190, 190);
 void vTask_LCD(void *pvParameters);
 void vTask_DataInput(void *pvParameters);
 void vTask_DataMock(void *pvParameter);
-
-dash_data_t dash_data_share;
-SemaphoreHandle_t dash_data_lock;
-
 void notify_cb(uint8_t *data, size_t len);
+void gpio_interrupt_handler(void *args);
 
-void set_label()
-{
-    sprite.setTextColor(gray);
-    sprite.setFont(&fonts::FreeSans9pt7b);
-    sprite.setTextSize(1);
-}
+enum DisplayMode { STANDARD, SEVEN_SEGMENT };
+nvs_handle_t display_mode_nvs_handle;
+DisplayMode displayMode(STANDARD);
 
-void set_value()
-{
-    sprite.setTextColor(white);
-    sprite.setFont(&fonts::Font0);
-    sprite.setTextSize(3.5);
-}
+class View {
+    public:
+        virtual void render(dash_data_t *dash_data) = 0;
+};
 
-void set_value_large()
-{
-    sprite.setTextColor(white);
-    sprite.setFont(&fonts::Font0);
-    sprite.setTextSize(13);
-}
+class DefaultView: public View {
+    public: 
+        void render(dash_data_t *dash_data)
+        {
+            char digits[16];
+            sprite.fillScreen(0);
+            sprite.setColor(white);
 
-void draw_sprite()
-{
-    dash_data_t dash_data;
-    xSemaphoreTake(dash_data_lock, portMAX_DELAY);
-    dash_data = dash_data_share;
-    xSemaphoreGive(dash_data_lock);
+            // OilP
+            setupText(LABEL);
+            sprite.drawString("OILP (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
 
-    clamp_dash_data(&dash_data);
+            setupText(VALUE_LARGE);
+            sprintf(digits, "%3d", dash_data->oil_pressure);
+            sprite.drawRightString(digits, 232, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
 
-    char digits[16];
-    sprite.fillScreen(0);
-    sprite.setColor(white);
+            // OilT
+            setupText(LABEL);
+            sprite.drawString("OILT (F)", UI_COLUMN_BEGIN_2, UI_SAFE_ZONE_MARGIN);
 
-    // OilP
-    set_label();
-    sprite.drawString("Oil P (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
+            setupText(VALUE_SMALL);
+            sprintf(digits, "%3d", dash_data->oil_temp);
+            sprite.drawRightString(digits, EXAMPLE_LCD_H_RES - UI_SAFE_ZONE_MARGIN, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
 
-    set_value_large();
-    sprintf(digits, "%3d", dash_data.oil_pressure);
-    sprite.drawString(digits, UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
+            // ECT
+            setupText(LABEL);
+            sprite.drawString("ECT (F)", UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_2);
 
-    // OilT
-    set_label();
-    sprite.drawString("Oil T (F)", UI_COLUMN_BEGIN_2, UI_MARGIN_VERTICAL);
+            setupText(VALUE_SMALL);
+            sprintf(digits, "%3d", dash_data->engine_coolant_temp);
+            sprite.drawRightString(digits, EXAMPLE_LCD_H_RES - UI_SAFE_ZONE_MARGIN, UI_ROW_BEGIN_2 + UI_LABEL_HEIGHT);
 
-    set_value();
-    sprintf(digits, "%3d", dash_data.oil_temp);
-    sprite.drawString(digits, UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
+            // PPS / Brake
+            setupText(LABEL);
+            sprite.drawString("THROTTLE /", UI_ROW_BEGIN_1, UI_ROW_BEGIN_3);
+            sprite.setTextColor(red);
+            sprite.drawString("BRAKE", 110, UI_ROW_BEGIN_3);
+            sprite.fillRect(0, 144, transform(dash_data->throttle_per, 0, 100, 0, 232), 24, white);
+            sprite.fillRect(0, 144, transform(dash_data->brake_per, 0, 100, 0, 232), 24, red);
 
-    // ECT
-    set_label();
-    sprite.drawString("ECT (F)", UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_2);
+            setupText(LABEL);
+            sprite.drawString("STEER", UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_3);
 
-    set_value();
-    sprintf(digits, "%3d", dash_data.engine_coolant_temp);
-    sprite.drawString(digits, UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_2 + UI_LABEL_HEIGHT);
+            // Steering
+            setupText(VALUE_SMALL);
+            sprintf(digits, "%3d", dash_data->steering);
+            sprite.drawRightString(digits, EXAMPLE_LCD_H_RES - UI_SAFE_ZONE_MARGIN, UI_ROW_BEGIN_3 + UI_LABEL_HEIGHT);
+        }
 
-    // PPS / Brake
-    set_label();
-    sprite.drawString("Throttle /", UI_ROW_BEGIN_1, UI_ROW_BEGIN_3);
-    sprite.setTextColor(red);
-    sprite.drawString("Brake", 78, UI_ROW_BEGIN_3);
-    sprite.fillRect(0, 143, dash_data.throttle_per * 2.21, 24, white);
-    sprite.fillRect(0, 143, dash_data.brake_per * 2.21, 24, red);
+    private:
+        enum UseCase { LABEL, VALUE_LARGE, VALUE_SMALL };
 
-    set_label();
-    sprite.drawString("Steering", UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_3);
+        void setupText(UseCase useCase)
+        {
+            switch (useCase) {
+            case LABEL:
+                sprite.setTextColor(gray);
+                sprite.setFont(&fonts::FreeSans9pt7b);
+                sprite.setTextSize(1);
+                break;
+            case VALUE_LARGE:
+                sprite.setTextColor(white);
+                sprite.setFont(&fonts::Font0);
+                sprite.setTextSize(12.5);
+                break;
+            case VALUE_SMALL:
+                sprite.setTextColor(white);
+                sprite.setFont(&fonts::Font0);
+                sprite.setTextSize(3.5);
+                break;
+            }
+        }
+};
 
-    // Steering
-    set_value();
-    sprintf(digits, "%3d", dash_data.steering);
-    sprite.drawString(digits, UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_3 + UI_LABEL_HEIGHT);
-}
+class SevenSegmentView: public View {
+    public: 
+        void render(dash_data_t *dash_data)
+        {
+            char digits[16];
+            sprite.fillScreen(0);
+            sprite.setColor(white);
+
+            // OilP
+            setupText(LABEL);
+            sprite.drawString("OILP (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
+
+            setupText(VALUE_LARGE);
+            sprintf(digits, "%3d", dash_data->oil_pressure);
+            sprite.drawRightString(digits, 220, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
+
+            // OilT
+            setupText(LABEL);
+            sprite.drawString("OILT (F)", UI_COLUMN_BEGIN_2, UI_SAFE_ZONE_MARGIN);
+
+            setupText(VALUE_SMALL);
+            sprintf(digits, "%3d", dash_data->oil_temp);
+            sprite.drawRightString(digits, EXAMPLE_LCD_H_RES - UI_SAFE_ZONE_MARGIN, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
+
+            // ECT
+            setupText(LABEL);
+            sprite.drawString("ECT (F)", UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_2);
+
+            setupText(VALUE_SMALL);
+            sprintf(digits, "%3d", dash_data->engine_coolant_temp);
+            sprite.drawRightString(digits, EXAMPLE_LCD_H_RES - UI_SAFE_ZONE_MARGIN, UI_ROW_BEGIN_2 + UI_LABEL_HEIGHT);
+
+            // PPS / Brake
+            setupText(LABEL);
+            sprite.drawString("THROTTLE /", UI_ROW_BEGIN_1, UI_ROW_BEGIN_3 + 4);
+            sprite.setTextColor(red);
+            sprite.drawString("BRAKE", 110, UI_ROW_BEGIN_3 + 4);
+            sprite.fillRect(0, 144, transform(dash_data->throttle_per, 0, 100, 0, 220), 24, white);
+            sprite.fillRect(0, 144, transform(dash_data->brake_per, 0, 100, 0, 220), 24, red);
+
+            setupText(LABEL);
+            sprite.drawString("STEER", UI_COLUMN_BEGIN_2, UI_ROW_BEGIN_3);
+
+            // Steering
+            setupText(VALUE_SMALL);
+            sprintf(digits, "%3d", dash_data->steering);
+            sprite.drawRightString(digits, EXAMPLE_LCD_H_RES - UI_SAFE_ZONE_MARGIN, UI_ROW_BEGIN_3 + UI_LABEL_HEIGHT);
+        }
+    
+    private:
+        enum UseCase { LABEL, VALUE_LARGE, VALUE_SMALL };
+
+        void setupText(UseCase useCase)
+        {
+            switch (useCase) {
+            case LABEL:
+                sprite.setTextColor(gray);
+                sprite.setFont(&fonts::FreeSans9pt7b);
+                sprite.setTextSize(1);
+                break;
+            case VALUE_LARGE:
+                sprite.setTextColor(white);
+                sprite.setFont(&fonts::Font7);
+                sprite.setTextSize(2);
+                break;
+            case VALUE_SMALL:
+                sprite.setTextColor(white);
+                sprite.setFont(&fonts::Font7);
+                sprite.setTextSize(.55);
+                break;
+            }
+        }
+};
+
+DefaultView defaultView;
+SevenSegmentView sevenSegmentView;
 
 uint16_t framebuffer[170][320];
-std::atomic<size_t> trans_done_calls;
 
-static void tick_timer_cb(void *arg)
+void set_nvs_display_mode(DisplayMode value)
 {
-    size_t data = trans_done_calls;
-    ESP_LOGI("FPS", "trans_done_calls: %zu", data);
-    trans_done_calls = 0;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &display_mode_nvs_handle);
+    if (err) 
+    { 
+        ESP_LOGE("DISPLAY MODE", "error opening nvs handle for display mode, %s", esp_err_to_name(err)); 
+    }
+    err = nvs_set_i32(display_mode_nvs_handle, "display_mode", value);
+    if (err) 
+    { 
+        ESP_LOGE("DISPLAY MODE", "nvs set operation failed %s", esp_err_to_name(err)); 
+    }
+    err = nvs_commit(display_mode_nvs_handle);
+    if (err) 
+    { 
+        ESP_LOGE("DISPLAY MODE", "nvs commit failed %s", esp_err_to_name(err)); 
+    }
+    nvs_close(display_mode_nvs_handle);
+}
+
+void configureInputOnPin(gpio_num_t pin)
+{
+    esp_err_t err = gpio_set_direction(pin, GPIO_MODE_INPUT);
+    if (err)
+    {
+        ESP_LOGE("MAIN", "Failed to set pin %d to input mode", pin);
+    }
+    err = gpio_set_intr_type(pin, GPIO_INTR_POSEDGE);
+    if (err)
+    {
+        ESP_LOGE("MAIN", "Failed to configure interrupt type for pin %d", pin);
+    }
+    err = gpio_pullup_dis(pin);
+    if (err)
+    {
+        ESP_LOGE("MAIN", "Failed to configure pullup for pin %d", pin);
+    }
+    err = gpio_isr_handler_add(pin, gpio_interrupt_handler, (void*) pin);
+    if (err)
+    {
+        ESP_LOGE("MAIN", "Failed to register gpio isr handler for pin %d", pin);
+    }
+}
+
+void restoreDisplayMode()
+{
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &display_mode_nvs_handle);
+    if (err) 
+    { 
+        ESP_LOGE("DISPLAY MODE", "Failed to open nvs handle for display mode, %s", esp_err_to_name(err)); 
+    }
+
+    int32_t nvs_display_mode;
+    err = nvs_get_i32(display_mode_nvs_handle, "display_mode", &nvs_display_mode);
+    switch (err) {
+        case ESP_OK:
+            DisplayMode found;
+            found = static_cast<DisplayMode>(nvs_display_mode);
+            if (found)
+            {
+                displayMode = found;
+                ESP_LOGI("DISPLAY MODE", "Display mode restored");
+            } 
+            else 
+            {
+                ESP_LOGW("DISPLAY MODE", "Failed to restore persisted display mode");
+            }
+            break;
+        case ESP_ERR_NVS_NOT_FOUND:
+            ESP_LOGI("DISPLAY MODE", "No persisted display mode. Persisting default mode.");
+            set_nvs_display_mode(STANDARD);
+            break;
+        default:
+            ESP_LOGE("DISPLAY MODE", "Unexpected error: (%s)", esp_err_to_name(err));
+    }
+    nvs_close(nvs_display_mode);
 }
 
 extern "C" void app_main(void)
 {
-    esp_err_t err = gpio_set_direction(GPIO_NUM_15, GPIO_MODE_OUTPUT);
+    esp_err_t err = gpio_install_isr_service(0);
     if (err)
     {
-        ESP_LOGE("MAIN", "failed to set pin 15 to output");
+        ESP_LOGE("MAIN", "Failed enable gpio isr service");
+    }
+    err = gpio_set_direction(GPIO_NUM_15, GPIO_MODE_OUTPUT);
+    if (err)
+    {
+        ESP_LOGE("MAIN", "Failed to set pin 15 to output");
     }
     err = gpio_set_level(GPIO_NUM_15, 1);
     if (err)
     {
-        ESP_LOGE("MAIN", "failed to set pin 15 to 1");
+        ESP_LOGE("MAIN", "Failed to set pin 15 to 1");
     }
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
@@ -242,6 +403,12 @@ extern "C" void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+    restoreDisplayMode();
+
+    configureInputOnPin(GPIO_NUM_0);
+    configureInputOnPin(GPIO_NUM_14);
+
     dash_data_lock = xSemaphoreCreateMutex();
     lcd.init();
     lcd.setRotation(0);
@@ -250,19 +417,10 @@ extern "C" void app_main(void)
     lcd.setBrightness(255);
     sprite.setBuffer(framebuffer, 320, 170, 16);
     ESP_LOGI("S3Dash", "LCD Init complete");
-    const esp_timer_create_args_t tick_timer_args = {
-        .callback = &tick_timer_cb,
-        .arg = NULL,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "tick_timer",
-        .skip_unhandled_events = false,
-    };
-    esp_timer_handle_t tick_timer = NULL;
 
-    ESP_ERROR_CHECK(esp_timer_create(&tick_timer_args, &tick_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(tick_timer, 1000000));
     xTaskCreatePinnedToCore(vTask_LCD, "lcdTask", 1024 * 16, NULL, 1, NULL, CPU_CORE_1);
     // xTaskCreatePinnedToCore(vTask_DataMock, "dataTask", 1024*2, NULL, tskIDLE_PRIORITY, NULL, CPU_CORE_0);
+
     ble_init();
     set_ble_notify_callback(notify_cb);
 }
@@ -273,10 +431,27 @@ void vTask_LCD(void *pvParameters)
     while (1)
     {
         vTaskDelay(1);
-        draw_sprite();
+
+        dash_data_t dash_data;
+
+        xSemaphoreTake(dash_data_lock, portMAX_DELAY);
+        dash_data = dash_data_share;
+        xSemaphoreGive(dash_data_lock);
+
+        clamp_dash_data(&dash_data);
+
+        switch (displayMode) { 
+            case STANDARD:
+            defaultView.render(&dash_data);
+            break;
+
+            case SEVEN_SEGMENT:
+            sevenSegmentView.render(&dash_data);
+            break;
+        }
+
         // Function will block until all data are written.
         sprite.pushSprite(&lcd, 0, 0);
-        trans_done_calls++;
     }
 }
 
@@ -305,7 +480,7 @@ void vTask_DataMock(void *pvParameter)
     }
 }
 
-void notify_cb(uint8_t *data, size_t len)
+void IRAM_ATTR notify_cb(uint8_t *data, size_t len)
 {
     if (len < 12)
         return;
@@ -335,4 +510,22 @@ void notify_cb(uint8_t *data, size_t len)
         break;
     }
     xSemaphoreGive(dash_data_lock);
+}
+
+void IRAM_ATTR gpio_interrupt_handler(void *args)
+{
+    uint16_t pinNumber = (int)args;
+    {
+        if (pinNumber == GPIO_NUM_14 && displayMode != STANDARD)
+        {
+            displayMode = STANDARD;
+            set_nvs_display_mode(STANDARD);
+        }
+
+        if (pinNumber == GPIO_NUM_0 && displayMode != SEVEN_SEGMENT)
+        {
+            displayMode = SEVEN_SEGMENT;
+            set_nvs_display_mode(SEVEN_SEGMENT);
+        }
+    }
 }
