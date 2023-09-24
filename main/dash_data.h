@@ -1,5 +1,7 @@
-#ifndef S3DASH_TYPES_H
-#define S3DASH_TYPES_H
+#ifndef S3DASH_DASH_DATA_H
+#define S3DASH_DASH_DATA_H
+
+#include <algorithm>
 
 typedef struct {
     int oil_pressure;
@@ -9,5 +11,9 @@ typedef struct {
     int brake_per;
     int steering;
 } dash_data_t;
+
+namespace DashData { 
+    void clamp(dash_data_t *dash_data);
+}
 
 #endif
