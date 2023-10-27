@@ -134,7 +134,7 @@ void SteeringWheelMountedView::render(dash_data_t *dash_data)
 
     metric_t metric;
     metric.label = "OILP (PSI)";
-    metric.value = dash_data->oil_pressure;
+    metric.value = dash_data->oil_pressure0;
     HeroMetricView(56, UI_SAFE_ZONE_MARGIN, 172, &metric);
 
     int y = UI_SAFE_ZONE_MARGIN;

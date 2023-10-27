@@ -8,7 +8,7 @@
 #define PROFILE_A_APP_ID 0
 #define INVALID_HANDLE 0
 
-static const char remote_device_name[] = "ESP_CAN";
+static const char remote_device_name[] = "ECAN_XXXX";
 static bool connect = false;
 static bool get_server = false;
 static esp_gattc_char_elem_t *char_elem_result = NULL;
@@ -476,12 +476,12 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
         {
         case ESP_GAP_SEARCH_INQ_RES_EVT:
         {
-            esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, 6);
-            ESP_LOGI(GATTC_TAG, "searched Adv Data Len %d, Scan Response Len %d", scan_result->scan_rst.adv_data_len, scan_result->scan_rst.scan_rsp_len);
+            // esp_log_buffer_hex(GATTC_TAG, scan_result->scan_rst.bda, 6);
+            // ESP_LOGI(GATTC_TAG, "searched Adv Data Len %d, Scan Response Len %d", scan_result->scan_rst.adv_data_len, scan_result->scan_rst.scan_rsp_len);
             adv_name = esp_ble_resolve_adv_data(scan_result->scan_rst.ble_adv,
                                                 ESP_BLE_AD_TYPE_NAME_CMPL, &adv_name_len);
-            ESP_LOGI(GATTC_TAG, "searched Device Name Len %d", adv_name_len);
-            esp_log_buffer_char(GATTC_TAG, adv_name, adv_name_len);
+            // ESP_LOGI(GATTC_TAG, "searched Device Name Len %d", adv_name_len);
+            // esp_log_buffer_char(GATTC_TAG, adv_name, adv_name_len);
 
             // if (scan_result->scan_rst.adv_data_len > 0) {
             //     ESP_LOGI(GATTC_TAG, "adv data:");
@@ -492,7 +492,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
             //     esp_log_buffer_hex(GATTC_TAG, &scan_result->scan_rst.ble_adv[scan_result->scan_rst.adv_data_len], scan_result->scan_rst.scan_rsp_len);
             // }
 
-            ESP_LOGI(GATTC_TAG, " ");
+            // ESP_LOGI(GATTC_TAG, " ");
 
             if (adv_name != NULL)
             {

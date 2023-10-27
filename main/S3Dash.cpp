@@ -84,20 +84,34 @@ void gpio_interrupt_handler(void *args);
 enum DataSource { BLE, MOCK };
 DataSource dataSource(BLE);
 
-enum DisplayMode { DASH_MOUNT, STEERING_WHEEL_MOUNT };
+typedef struct {
+    uint16_t displayMode;
+    uint16_t oilpressureMode;
+} NvsDisplayMode;
+
+NvsDisplayMode nvsMode = {
+    .displayMode = static_cast<uint16_t>(DASH_MOUNT),
+    .oilpressureMode = static_cast<uint16_t>(OILP_1),
+};
+
+NvsDisplayMode currentMode = {
+    .displayMode = static_cast<uint16_t>(DASH_MOUNT),
+    .oilpressureMode = static_cast<uint16_t>(OILP_1),
+};
+
+
 nvs_handle_t display_mode_nvs_handle;
-DisplayMode displayMode(DASH_MOUNT);
 
 uint16_t framebuffer[LCD_V_RES][LCD_H_RES];
 
-void set_nvs_display_mode(DisplayMode value)
+void set_nvs_display_mode(NvsDisplayMode mode)
 {
     esp_err_t err = nvs_open("storage", NVS_READWRITE, &display_mode_nvs_handle);
     if (err) 
     { 
         ESP_LOGE("DISPLAY MODE", "error opening nvs handle for display mode, %s", esp_err_to_name(err)); 
     }
-    err = nvs_set_i32(display_mode_nvs_handle, "display_mode", value);
+    err = nvs_set_u32(display_mode_nvs_handle, "display_mode", *(uint32_t*)&mode);
     if (err) 
     { 
         ESP_LOGE("DISPLAY MODE", "nvs set operation failed %s", esp_err_to_name(err)); 
@@ -142,30 +156,27 @@ void restoreDisplayMode()
         ESP_LOGE("DISPLAY MODE", "Failed to open nvs handle for display mode, %s", esp_err_to_name(err)); 
     }
 
-    int32_t nvs_display_mode;
-    err = nvs_get_i32(display_mode_nvs_handle, "display_mode", &nvs_display_mode);
-    switch (err) {
-        case ESP_OK:
-            DisplayMode found;
-            found = static_cast<DisplayMode>(nvs_display_mode);
-            if (found)
-            {
-                displayMode = found;
-                ESP_LOGI("DISPLAY MODE", "Display mode restored");
-            } 
-            else 
-            {
-                ESP_LOGW("DISPLAY MODE", "Failed to restore persisted display mode");
-            }
-            break;
-        case ESP_ERR_NVS_NOT_FOUND:
-            ESP_LOGI("DISPLAY MODE", "No persisted display mode. Persisting default mode.");
-            set_nvs_display_mode(DASH_MOUNT);
-            break;
-        default:
-            ESP_LOGE("DISPLAY MODE", "Unexpected error: (%s)", esp_err_to_name(err));
-    }
+    uint32_t nvs_display_mode;
+    err = nvs_get_u32(display_mode_nvs_handle, "display_mode", &nvs_display_mode);
     nvs_close(nvs_display_mode);
+    if (err == ESP_OK) {
+        nvsMode = *(NvsDisplayMode*)&nvs_display_mode;
+        if (nvsMode.displayMode > STEERING_WHEEL_MOUNT || nvsMode.oilpressureMode > OILP_1) {
+            ESP_LOGW("DISPLAY MODE", "Unknown display mode. Revert to default");
+            nvsMode.displayMode = DASH_MOUNT;
+            nvsMode.oilpressureMode = OILP_1;
+            set_nvs_display_mode(nvsMode);
+        } else {
+            ESP_LOGI("DISPLAY MODE", "Display mode restored");
+        }
+        currentMode = nvsMode;
+    } else {
+        ESP_LOGI("DISPLAY MODE", "No persisted display mode. Persisting default mode.");
+        nvsMode.displayMode = DASH_MOUNT;
+        nvsMode.oilpressureMode = OILP_1;
+        set_nvs_display_mode(nvsMode);
+        currentMode = nvsMode;
+    }
 }
 
 extern "C" void app_main(void)
@@ -237,20 +248,28 @@ void vTask_LCD(void *pvParameters)
 
         sprite.startWrite();
         if (!is_connected)
+        //if (false)
         {
             ConnectingView(&sprite).render();
         }
         else
         {
-            switch (displayMode) { 
+            switch (currentMode.displayMode) { 
                 case DASH_MOUNT:
-                DashMountedView(&sprite).render(&dash_data);
+                {
+                    DashMountedView view(&sprite);
+                    view.setOilP(static_cast<OilPressureMode>(currentMode.oilpressureMode));
+                    view.render(&dash_data);
+                }
                 break;
-
                 case STEERING_WHEEL_MOUNT:
                 SteeringWheelMountedView(&sprite).render(&dash_data);
                 break;
             }
+        }
+        if (*(uint32_t*)&currentMode != *(uint32_t*)&nvsMode) {
+            nvsMode = currentMode;
+            set_nvs_display_mode(nvsMode);
         }
         // Function will block until all data are written.
         sprite.pushSprite(&lcd, 0, 0);
@@ -274,7 +293,7 @@ void vTask_DataMock(void *pvParameter)
         xSemaphoreTake(dash_data_lock, portMAX_DELAY);
 
         dash_data_share.rpm = (dash_data_share.rpm + (2000000 / (dash_data_share.rpm + 1)) - 160) % 7800;
-        dash_data_share.oil_pressure = dash_data_share.rpm * 0.01 + 10;
+        dash_data_share.oil_pressure0 = dash_data_share.rpm * 0.01 + 10;
         dash_data_share.oil_temp = r2 % 250;
         dash_data_share.engine_coolant_temp = r3 % 250;
         dash_data_share.throttle_per = r4 % 100;
@@ -295,7 +314,8 @@ void IRAM_ATTR notify_cb(uint8_t *data, size_t len)
 
     is_connected = true;
 
-    xSemaphoreTake(dash_data_lock, portMAX_DELAY);
+    if (xSemaphoreTake(dash_data_lock, 1) == pdFALSE)
+        return;
     switch (can_id)
     {
     case 0x40:
@@ -314,8 +334,9 @@ void IRAM_ATTR notify_cb(uint8_t *data, size_t len)
         dash_data_share.engine_coolant_temp = ((int)*(payload + 4)) - 40;
         dash_data_share.engine_coolant_temp = dash_data_share.engine_coolant_temp * 9 / 5 + 32;
         break;
-    case 0x662:
-        dash_data_share.oil_pressure = *(payload);
+    case 0x662:        
+        dash_data_share.oil_pressure0 = bitsToUIntLe(payload, 0, 16) / 10;
+        dash_data_share.oil_pressure1 = bitsToUIntLe(payload, 16, 16) / 10;
         break;
     }
     xSemaphoreGive(dash_data_lock);
@@ -325,16 +346,18 @@ void IRAM_ATTR gpio_interrupt_handler(void *args)
 {
     uint16_t pinNumber = (int)args;
     {
-        if (pinNumber == GPIO_NUM_14 && displayMode != DASH_MOUNT)
+        if (pinNumber == GPIO_NUM_14)
         {
-            displayMode = DASH_MOUNT;
-            set_nvs_display_mode(DASH_MOUNT);
+            currentMode.displayMode++;
+            if (currentMode.displayMode > STEERING_WHEEL_MOUNT)
+                currentMode.displayMode = DASH_MOUNT;
         }
 
-        if (pinNumber == GPIO_NUM_0 && displayMode != STEERING_WHEEL_MOUNT)
+        if (pinNumber == GPIO_NUM_0)
         {
-            displayMode = STEERING_WHEEL_MOUNT;
-            set_nvs_display_mode(STEERING_WHEEL_MOUNT);
+            currentMode.oilpressureMode++;
+            if (currentMode.oilpressureMode > OILP_1)
+                currentMode.oilpressureMode = OILP_0;
         }
     }
 }

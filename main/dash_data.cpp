@@ -8,7 +8,8 @@
 void DashData::clamp(dash_data_t *dash_data)
 {
     dash_data->rpm = std::clamp(dash_data->rpm, 0, 9999);
-    dash_data->oil_pressure = std::clamp(dash_data->oil_pressure, 0, 160);
+    dash_data->oil_pressure0 = std::clamp(dash_data->oil_pressure0, 0, 200);
+    dash_data->oil_pressure1 = std::clamp(dash_data->oil_pressure1, 0, 200);
     dash_data->engine_coolant_temp = std::clamp(dash_data->engine_coolant_temp, 0, 300);
     dash_data->oil_temp = std::clamp(dash_data->oil_temp, 0, 300);
     dash_data->brake_per = std::clamp(dash_data->brake_per, 0, 100);

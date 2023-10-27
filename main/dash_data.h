@@ -5,7 +5,8 @@
 
 typedef struct {
     int rpm;
-    int oil_pressure;
+    int oil_pressure0;
+    int oil_pressure1;
     int oil_temp;
     int engine_coolant_temp;
     int throttle_per;

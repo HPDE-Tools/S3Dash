@@ -41,9 +41,15 @@ void DashMountedView::render(dash_data_t *dash_data)
 
     // OilP
     setupText(LABEL);
-    sprite->drawString("OILP (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
+    if (oilPMode == OILP_0)
+        sprite->drawString("OILP0 (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
+    else
+        sprite->drawString("OILP1 (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
     setupText(VALUE_LARGE);
-    sprite->drawRightNumber(dash_data->oil_pressure, 220, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
+    if (oilPMode == OILP_1)
+        sprite->drawRightNumber(dash_data->oil_pressure0, 220, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
+    else
+        sprite->drawRightNumber(dash_data->oil_pressure1, 220, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
 
     // OilT
     setupText(LABEL);
@@ -75,4 +81,8 @@ void DashMountedView::render(dash_data_t *dash_data)
     // Steering
     setupText(VALUE_SMALL);
     sprite->drawRightNumber(dash_data->steering, LCD_H_RES - UI_SAFE_ZONE_MARGIN, UI_ROW_BEGIN_3 + UI_LABEL_HEIGHT);
+}
+
+void DashMountedView::setOilP(OilPressureMode mode) {
+    this->oilPMode = mode;
 }

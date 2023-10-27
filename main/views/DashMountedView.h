@@ -7,10 +7,15 @@
 #include "lcd.h"
 #include "sprite.h"
 
+enum OilPressureMode {OILP_0, OILP_1};
+enum DisplayMode { DASH_MOUNT, STEERING_WHEEL_MOUNT };
+
 class DashMountedView: public DisplayModeView 
 {
 private:
     Sprite *sprite;
+
+    OilPressureMode oilPMode;
 
     enum UseCase { LABEL, VALUE_LARGE, VALUE_SMALL };
 
@@ -20,6 +25,8 @@ public:
     DashMountedView(Sprite *renderOn);
 
     void render(dash_data_t *dash_data);
+
+    void setOilP(OilPressureMode mode);
 };
 
 #endif
