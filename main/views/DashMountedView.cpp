@@ -31,6 +31,11 @@ void DashMountedView::setupText(UseCase useCase)
         sprite->setFont(&fonts::Font7);
         sprite->setTextSize(.55);
         break;
+    case VALUE_LARGE_ALARM:
+        sprite->setTextColor(Color::COLOR_RED);
+        sprite->setFont(&fonts::Font7);
+        sprite->setTextSize(2);
+        break;
     }
 }
 
@@ -45,8 +50,16 @@ void DashMountedView::render(dash_data_t *dash_data)
         sprite->drawString("OILP0 (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
     else
         sprite->drawString("OILP1 (PSI)", UI_COLUMN_BEGIN_1, UI_ROW_BEGIN_1);
-    setupText(VALUE_LARGE);
-    if (oilPMode == OILP_1)
+
+    if (invertedColor) {
+        setupText(VALUE_LARGE_ALARM);
+        sprite->setColor(Color::COLOR_WHITE);
+        sprite->fillRect(UI_SAFE_ZONE_MARGIN,  UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT, 220, UI_ROW_BEGIN_3 - UI_SAFE_ZONE_MARGIN);
+    }
+    else {
+        setupText(VALUE_LARGE);
+    }
+    if (oilPMode == OILP_0)
         sprite->drawRightNumber(dash_data->oil_pressure0, 220, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
     else
         sprite->drawRightNumber(dash_data->oil_pressure1, 220, UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT);
@@ -85,4 +98,8 @@ void DashMountedView::render(dash_data_t *dash_data)
 
 void DashMountedView::setOilP(OilPressureMode mode) {
     this->oilPMode = mode;
+}
+
+void DashMountedView::setInvertColor(bool inverted) {
+    this->invertedColor = inverted;
 }

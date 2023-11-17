@@ -13,11 +13,13 @@ enum DisplayMode { DASH_MOUNT, STEERING_WHEEL_MOUNT };
 class DashMountedView: public DisplayModeView 
 {
 private:
+    volatile bool invertedColor;
+
     Sprite *sprite;
 
     OilPressureMode oilPMode;
 
-    enum UseCase { LABEL, VALUE_LARGE, VALUE_SMALL };
+    enum UseCase { LABEL, VALUE_LARGE, VALUE_SMALL, VALUE_LARGE_ALARM};
 
     void setupText(UseCase useCase);
 
@@ -27,6 +29,8 @@ public:
     void render(dash_data_t *dash_data);
 
     void setOilP(OilPressureMode mode);
+
+    void setInvertColor(bool invert);
 };
 
 #endif

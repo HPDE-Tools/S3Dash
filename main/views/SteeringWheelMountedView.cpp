@@ -156,3 +156,7 @@ void SteeringWheelMountedView::render(dash_data_t *dash_data)
     metric.value = dash_data->steering;
     MetricView(METRIC_START, y + METRIC_HEIGHT * 2, METRIC_WIDTH, &metric);
 }
+
+void SteeringWheelMountedView::setInvertColor(bool inverted) {
+    this->invertedColor = inverted;
+}

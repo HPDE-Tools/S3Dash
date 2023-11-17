@@ -12,6 +12,7 @@ class SteeringWheelMountedView: public DisplayModeView
 {
 private:
     Sprite *sprite;
+    volatile bool invertedColor;
 
     void LabelView(const char *value, int x, int y);
     void MetricView(int x, int y, int width, metric_t *metric);
@@ -23,6 +24,8 @@ public:
     SteeringWheelMountedView(Sprite *renderOn);
 
     void render(dash_data_t *dash_data);
+
+    void setInvertColor(bool invert);
 };
 
 #endif

@@ -74,12 +74,14 @@ dash_data_t dash_data_share;
 SemaphoreHandle_t dash_data_lock;
 
 bool is_connected = false;
+volatile bool invert_color;
 
 void vTask_LCD(void *pvParameters);
 void vTask_DataInput(void *pvParameters);
 void vTask_DataMock(void *pvParameter);
 void notify_cb(uint8_t *data, size_t len);
 void gpio_interrupt_handler(void *args);
+static void tick_timer_cb(void *arg);
 
 enum DataSource { BLE, MOCK };
 DataSource dataSource(BLE);
@@ -227,8 +229,20 @@ extern "C" void app_main(void)
         break;
     case MOCK:
         xTaskCreatePinnedToCore(vTask_DataMock, "dataTask", 1024*2, NULL, tskIDLE_PRIORITY, NULL, CPU_CORE_0);
+        break;
     }
+    invert_color = false;
+    const esp_timer_create_args_t tick_timer_args = {
+        .callback = &tick_timer_cb,
+        .arg = NULL,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "tick_timer",
+        .skip_unhandled_events = false,
+    };
 
+    esp_timer_handle_t tick_timer = NULL;
+    ESP_ERROR_CHECK(esp_timer_create(&tick_timer_args, &tick_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(tick_timer, 100000));
     xTaskCreatePinnedToCore(vTask_LCD, "lcdTask", 1024 * 16, NULL, 1, NULL, CPU_CORE_1);
 }
 
@@ -259,6 +273,7 @@ void vTask_LCD(void *pvParameters)
                 {
                     DashMountedView view(&sprite);
                     view.setOilP(static_cast<OilPressureMode>(currentMode.oilpressureMode));
+                    view.setInvertColor(invert_color);
                     view.render(&dash_data);
                 }
                 break;
@@ -281,10 +296,12 @@ void vTask_DataMock(void *pvParameter)
 {
     vTaskDelay(300);
     srand(100);
+    memset(&dash_data_share, 0, sizeof(dash_data_t));
+    bool direction_up = true;
     while (1)
     {
         is_connected = true;
-
+        /*
         int r2 = rand();
         int r3 = rand();
         int r4 = rand();
@@ -301,7 +318,21 @@ void vTask_DataMock(void *pvParameter)
         dash_data_share.steering = r6 % 1800 - 900;
 
         xSemaphoreGive(dash_data_lock);
-        vTaskDelay(400);
+        */
+        dash_data_share.rpm = 4000;
+        if (direction_up) {
+            dash_data_share.oil_pressure0 += 1;
+            dash_data_share.oil_pressure1 += 1;
+        }
+        else {
+            dash_data_share.oil_pressure0 -= 1;
+            dash_data_share.oil_pressure1 -= 1;
+        }
+        if (dash_data_share.oil_pressure0 > 60)
+            direction_up = false;
+        if (dash_data_share.oil_pressure0 < 10)
+            direction_up = true;
+        vTaskDelay(80);
     }
 }
 
@@ -360,4 +391,19 @@ void IRAM_ATTR gpio_interrupt_handler(void *args)
                 currentMode.oilpressureMode = OILP_0;
         }
     }
+}
+
+static void tick_timer_cb(void *arg)
+{
+    if (dash_data_share.rpm >=3500) {
+        if (currentMode.oilpressureMode == OILP_0 && dash_data_share.oil_pressure0 <35) {
+            invert_color = !invert_color;
+            return;
+        }
+        if (currentMode.oilpressureMode == OILP_1 && dash_data_share.oil_pressure1 <35) {
+            invert_color = !invert_color;
+            return;
+        }
+    }
+    invert_color = false;
 }

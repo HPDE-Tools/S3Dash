@@ -7,6 +7,7 @@ class DisplayModeView
 {
 public:
     virtual void render(dash_data_t *dash_data) = 0;
+    virtual void setInvertColor(bool invert) = 0;
 };
 
 #endif

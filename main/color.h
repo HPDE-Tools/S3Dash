@@ -12,6 +12,7 @@ namespace Color
     const uint16_t COLOR_YELLOW = 0xffc0;
     const uint16_t COLOR_ORANGE = 0xfc60;
     const uint16_t COLOR_BLUE = 0x061f;
+    const uint16_t COLOR_BLACK = 0x0000;
 }
 
 #endif
