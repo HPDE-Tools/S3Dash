@@ -53,7 +53,7 @@ void DashMountedView::render(dash_data_t *dash_data)
 
     if (invertedColor) {
         setupText(VALUE_LARGE_ALARM);
-        sprite->setColor(Color::COLOR_WHITE);
+        sprite->setColor(Color::COLOR_YELLOW);
         sprite->fillRect(UI_SAFE_ZONE_MARGIN,  UI_ROW_BEGIN_1 + UI_LABEL_HEIGHT, 220, UI_ROW_BEGIN_3 - UI_SAFE_ZONE_MARGIN);
     }
     else {
